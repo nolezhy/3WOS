@@ -1,9 +1,14 @@
+import lightgbm
 import numpy as np
 import pandas as pd
 from lightgbm import LGBMClassifier
-from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier, BaggingClassifier, AdaBoostClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import MultinomialNB
 from sklearn.neighbors import NearestNeighbors, KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.utils import _safe_indexing
 from process.fisvdd import fisvdd
 import base_sampler
@@ -12,7 +17,7 @@ from sklearn.svm import SVC
 import random
 import time
 
-cat_data = np.load(r'D:\pycharm\pythonProject\mySampling\data\x20data.npz')
+cat_data = np.load(r'D:\pycharm\pythonProject\3WOS\data\OpticalDigits.npz')
 all_data = cat_data['data']
 all_label = cat_data['label']
 kf = KFold(n_splits=5, shuffle=True)
@@ -40,7 +45,9 @@ minnum=wait_data.shape[0]
 #wait_data1 = train_data_all[index]
 reserve_data = all_data[reserve_index]  # 获取了多数类的数据
 maxnum=reserve_data.shape[0]
-k=minnum*5
+k=minnum*2
+#k=300
+print(k)
 weight=round(maxnum/minnum)
 #print(weight)
 #print('minnum,maxnum',minnum,maxnum)
@@ -52,13 +59,13 @@ weight=round(maxnum/minnum)
 #print(sv_index.shape[0], reserve_data.shape[0])#抽取少数类个数，多数类的个数
 #sample_data = wait_data[sv_index]  # 获取抽取的少数类样本点的数据
 
-diff = reserve_data.shape[0] - wait_data.shape[0]
-    #diff =k
+#diff = reserve_data.shape[0] - wait_data.shape[0]
+diff =k
 
 samples_indices = np.random.randint(low=0, high=np.shape(wait_data)[0], size=diff)#从0-少数类数量的数据中抽取diff个数据(比如从0-10中取10个数)
 reshaped_feature = np.vstack((wait_data, _safe_indexing(wait_data, samples_indices)))
 min_label = 1
-new_labels_data = np.array([min_label] * np.shape(reserve_data)[0])
+new_labels_data = np.array([min_label] * np.shape(reshaped_feature)[0])
 new_minor_data_arr2 = np.column_stack((reshaped_feature, new_labels_data))
 max_label = -1
 reserve_labels_data = np.array([max_label] * np.shape(reserve_data)[0])
@@ -81,10 +88,12 @@ for train_index, test_index in kf.split(balanced_data):  # 5次验证的(训练�
     train_label = balanced_label[train_index]
     test_data = balanced_data[test_index]
     test_label = balanced_label[test_index]
-    #clf = SVC(C=1.0, class_weight=None, coef0=0.0, decision_function_shape='ovr', gamma='auto', kernel='rbf',
-     #         max_iter=-1, random_state=None, tol=0.0001)
-    #clf.fit(train_data,train_label)
-    clf = MLPClassifier(solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(15,), random_state=1)
+    clf = SVC(C=1.0, class_weight=None, coef0=0.0, decision_function_shape='ovr', gamma='auto', kernel='rbf',
+             max_iter=-1, random_state=None, tol=0.0001)
+    # clf.fit(train_data,train_label)
+    # clf = MLPClassifier(solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(15,), random_state=1)
+    # clf.fit(train_data, train_label)
+    #clf =LogisticRegression()
     clf.fit(train_data, train_label)
 
 
@@ -100,43 +109,43 @@ for train_index, test_index in kf.split(balanced_data):  # 5次验证的(训练�
             FN += 1
         else:
             FP += 1
-    precision = TP / (TP + FP)  # 正例中有多少被预测为正例
-    recall = TP / (TP + FN)  # TPR#Senisitivity#正例被判成了正例有多少
-    Specificity = TN / (TN + FP)  # 负类被正确分类TNR
+precision = TP / (TP + FP)  # 正例中有多少被预测为正例
+recall = TP / (TP + FN)  # TPR#Senisitivity#正例被判成了正例有多少
+Specificity = TN / (TN + FP)  # 负类被正确分类TNR
     # TPR=TP/TP+FN#Senisitivity#正例被判成了正例
-    FPR = FP / (TN + FP)  # 多少负例被判成了正例
-    cost = 4
-    totalcost = cost * FN + 1 * FP
-    F1 = (2 * precision * recall) / (precision + recall)
-    correct = (TP + TN) / (TP + FP + TN + FN)
-    G_mean = (recall * Specificity) ** 0.5
-    end_time = time.time()
-    d_time = end_time - start_time
-    ave_P = precision + ave_P
-    ave_R = recall + ave_R
-    ave_F = F1 + ave_F
-    ave_G = G_mean + ave_G
-    ave_A = correct + ave_A
-    ave_C = ave_C + totalcost
-    ave_T = ave_T + d_time
-    ave_FN=FN+ave_FN
-    ave_FP=FP+ave_FP
-    print('FP,FN,TN,TP', FP, FN, TN, TP)
-    print("*Specificity", Specificity)
-    print("*totalcost", totalcost)
-    print("*G_mean:", G_mean)
-    print("F1 Score:", F1)
-    print('recall,precision', recall, precision)
-    print("correct:", correct)
-    print("run time:", d_time, "s")
-    print("********************************")
+FPR = FP / (TN + FP)  # 多少负例被判成了正例
+cost = 4
+totalcost = cost * FN + 1 * FP
+F1 = (2 * precision * recall) / (precision + recall)
+correct = (TP + TN) / (TP + FP + TN + FN)
+G_mean = (recall * Specificity) ** 0.5
+end_time = time.time()
+d_time = end_time - start_time
+    # ave_P = precision + ave_P
+    # ave_R = recall + ave_R
+    # ave_F = F1 + ave_F
+    # ave_G = G_mean + ave_G
+    # ave_A = correct + ave_A
+    # ave_C = ave_C + totalcost
+    # ave_T = ave_T + d_time
+    # ave_FN=FN+ave_FN
+    # ave_FP=FP+ave_FP
+print('FP,FN,TN,TP', FP, FN, TN, TP)
+print("*Specificity", Specificity)
+print("*totalcost", totalcost)
+print("*G_mean:", G_mean)
+print("F1 Score:", F1)
+print('recall,precision', recall, precision)
+print("correct:", correct)
+print("run time:", d_time, "s")
+print("********************************")
 
-print('ave_A',ave_A/5)
-print('ave_G', ave_G / 5)
-print('ave_F', ave_F / 5)
-print('ave_P', ave_P / 5)
-print('ave_R', ave_R / 5)
-print('ave_C', ave_C / 5)
-print('ave_T', ave_T / 5)
-print('ave_FN',ave_FN/5)
-print('ave_FP',ave_FP/5)
+# print('ave_A',ave_A/5)
+# print('ave_G', ave_G / 5)
+# print('ave_F', ave_F / 5)
+# print('ave_P', ave_P / 5)
+# print('ave_R', ave_R / 5)
+# print('ave_C', ave_C / 5)
+# print('ave_T', ave_T / 5)
+# print('ave_FN',ave_FN/5)
+# print('ave_FP',ave_FP/5)
